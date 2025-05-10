@@ -191,23 +191,23 @@ mean_annual_returns = np.array([
 ])
 
 # Volatilità annualizzate per settori (approssimative)
-std_annual = np.array([
-    0.22, 0.20, 0.21, 0.25, 0.28,
-    0.35,
-    0.18, 0.19,
-    0.15, 0.14,
-    0.16, 0.17, 0.15,
-    0.20, 0.19,
-    0.13, 0.13,
-    0.21, 0.14, 0.18
-])
+#std_annual = np.array([
+#    0.22, 0.20, 0.21, 0.25, 0.28,
+#    0.35,
+#    0.18, 0.19,
+#    0.15, 0.14,
+#    0.16, 0.17, 0.15,
+#    0.20, 0.19,
+#    0.13, 0.13,
+#    0.21, 0.14, 0.18
+#])
 
 # Convertiamo a valori giornalieri
-mean_daily_returns = mean_annual_returns / 252
-std_daily = std_annual / np.sqrt(252)
+#mean_daily_returns = mean_annual_returns / 252
+#std_daily = std_annual / np.sqrt(252)
 
 # Simuliamo rendimenti giornalieri realistici
-returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
+#returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
 with open("marc\selected_assets.json") as file:
     data = json.load(file)
