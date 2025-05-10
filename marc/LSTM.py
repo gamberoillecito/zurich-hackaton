@@ -209,7 +209,7 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 # Simuliamo rendimenti giornalieri realistici
 #returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
-def dictWeightedAssets(file)
+def dictWeightedAssets(file):
     with open(file) as openFile:
         data = json.load(openfile)
 
