@@ -22,7 +22,7 @@ import cvxpy as cp
 # ============================
 # ⚙️ FUNZIONE UNICA
 # ============================
-def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=0.1, plot_results=True):
+def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.0, plot_results=True):
     """
     Input: returns_df → DataFrame con rendimenti storici degli asset (n_days x n_assets)
     Output: Dizionario con pesi ottimali per asset
@@ -99,6 +99,7 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=0.1
     objective = cp.Maximize(portfolio_return - risk_aversion * portfolio_variance)
 
     constraints = [cp.sum(w) == 1, w >= 0]
+    constraints.append(w <= 0.05)
 
     prob = cp.Problem(objective, constraints)
     prob.solve()
@@ -140,13 +141,52 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=0.1
     return output
 
 # ============================
-# ✨ ESEMPIO DI USO (FAKE DATA)
+# ✨ ESEMPIO DI USO (REALISTIC DATA — 20 ASSETS)
 # ============================
 np.random.seed(42)
 n_days = 150
-n_assets = 3
-returns_df = pd.DataFrame(np.random.normal(0.001, 0.02, size=(n_days, n_assets)),
-                           columns=[f"Asset_{i+1}" for i in range(n_assets)])
+
+assets = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
+          'NVDA', 'JPM', 'BAC', 'WMT', 'PG',
+          'JNJ', 'PFE', 'UNH', 'XOM', 'CVX',
+          'T', 'VZ', 'NKE', 'KO', 'MCD']
+
+n_assets = len(assets)
+
+# Simuliamo diversi rendimenti medi annualizzati per settori (in ordine approssimativo)
+# Tech: più alto, Financial/Consumer/Healthcare: medio, Energy/Telecom: più basso
+mean_annual_returns = np.array([
+    0.15, 0.14, 0.14, 0.16, 0.18,  # Tech
+    0.20,                           # NVDA (semiconduttori ⇒ più volatile)
+    0.10, 0.09,                    # Financials
+    0.08, 0.08,                    # Consumer Staples
+    0.10, 0.09, 0.11,              # Healthcare
+    0.08, 0.07,                    # Energy
+    0.06, 0.06,                    # Telecom
+    0.12, 0.08, 0.11              # Consumer Discretionary / Staples
+])
+
+# Volatilità annualizzate per settori (approssimative)
+std_annual = np.array([
+    0.22, 0.20, 0.21, 0.25, 0.28,
+    0.35,
+    0.18, 0.19,
+    0.15, 0.14,
+    0.16, 0.17, 0.15,
+    0.20, 0.19,
+    0.13, 0.13,
+    0.21, 0.14, 0.18
+])
+
+# Convertiamo a valori giornalieri
+mean_daily_returns = mean_annual_returns / 252
+std_daily = std_annual / np.sqrt(252)
+
+# Simuliamo rendimenti giornalieri realistici
+returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
+returns_df = pd.DataFrame(returns, columns=assets)
+
+print(returns_df)
 
 # ⚡️ CHIAMA LA FUNZIONE
 optimal_weights = optimize_portfolio(returns_df)
