@@ -209,9 +209,10 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 # Simuliamo rendimenti giornalieri realistici
 #returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
-def dictWeightedAssets(file):
-    with open(file) as openFile:
-        data = json.load(openFile)
+
+def dictWeightedAssets(data):
+    #with open(file) as openFile:
+    #    data = json.load(openFile)
 
     # === Crea DataFrame prezzi ===
     prices_df = pd.DataFrame({
