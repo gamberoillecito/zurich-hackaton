@@ -209,18 +209,20 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 # Simuliamo rendimenti giornalieri realistici
 #returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
-with open("marc\selected_assets test1.json") as file:
-    data = json.load(file)
+def dictWeightedAssets(file)
+    with open(file) as openFile:
+        data = json.load(openfile)
 
-# === Crea DataFrame prezzi ===
-prices_df = pd.DataFrame({
+    # === Crea DataFrame prezzi ===
+    prices_df = pd.DataFrame({
     k: pd.Series(v['history']).sort_index()
     for k, v in data.items()
-}).reset_index(drop=True)
+    }).reset_index(drop=True)
 
-# === Calcola rendimenti log giornalieri ===
-returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
-print(returns_df)
+   #=== Calcola rendimenti log giornalieri ===
+    returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
+    print(returns_df)
+    optimal_weights = optimize_portfolio(returns_df)
+    # ⚡️ CHIAMA LA FUNZIONE con rendimenti (non prezzi!)
+    return optimal_weights
 
-# ⚡️ CHIAMA LA FUNZIONE con rendimenti (non prezzi!)
-optimal_weights = optimize_portfolio(returns_df)
