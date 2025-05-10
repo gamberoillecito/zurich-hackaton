@@ -211,7 +211,7 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 
 def dictWeightedAssets(file):
     with open(file) as openFile:
-        data = json.load(openfile)
+        data = json.load(openFile)
 
     # === Crea DataFrame prezzi ===
     prices_df = pd.DataFrame({
