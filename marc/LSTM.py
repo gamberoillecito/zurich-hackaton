@@ -9,6 +9,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
@@ -79,8 +80,12 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     # ============================
     # 📊 STATISTICHE STORICHE
     # ============================
+    # Rimuove asset con varianza zero (serie costante)
+    returns_df = returns_df.loc[:, returns_df.std() > 0]
+
     mean_returns = returns_df.mean().values
     cov_matrix = returns_df.cov().values
+    n_assets = returns_df.shape[1]   # Aggiorna n_assets
 
     # ============================
     # ⚙️ COSTRUISCI PREDICTED RETURNS VECTOR
@@ -96,15 +101,29 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     portfolio_return = predicted_returns @ w
     portfolio_variance = cp.quad_form(w, cov_matrix)
 
-    objective = cp.Maximize(portfolio_return - risk_aversion * portfolio_variance)
+    penalty = cp.sum(cp.square(w - cp.mean(w))) + cp.quad_form(w, np.identity(n_assets)) 
+     # Penalizza la varianza dei pesi
 
-    constraints = [cp.sum(w) == 1, w >= 0]
-    constraints.append(w <= 0.05)
+    # Obiettivo modificato con penalizzazione
+    objective = cp.Maximize(portfolio_return - risk_aversion * portfolio_variance - penalty)
 
+    # Limiti sui pesi
+    constraints = [cp.sum(w) == 1, w >= 0.01, w <= 0.40]
+
+    # Risolvi il problema di ottimizzazione
     prob = cp.Problem(objective, constraints)
     prob.solve()
 
+    # ============================
+    # ✅ CONTROLLA SE È FEASIBLE
+    # ============================
+    print("CVXPY problem status:", prob.status)
+
     optimal_weights = w.value
+
+    if prob.status != "optimal" or optimal_weights is None:
+        print("⚠️ CVXPY did not find a valid solution. Skipping weights and plot.")
+        optimal_weights = np.zeros(n_assets)   # Mettiamo pesi a zero per sicurezza
 
     # ============================
     # 📈 PLOT (facoltativo)
@@ -112,13 +131,18 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     if plot_results:
         plt.figure(figsize=(14,4))
 
-        plt.subplot(1,2,1)
-        plt.plot(history.history['loss'], label='Train Loss')
-        plt.plot(history.history['val_loss'], label='Val Loss')
-        plt.title('LSTM Training Loss')
-        plt.legend()
+        # Verifica se 'loss' e 'val_loss' sono disponibili nel dizionario
+        if 'loss' in history.history:
+            plt.subplot(1, 2, 1)
+            plt.plot(history.history['loss'], label='Train Loss')
+            if 'val_loss' in history.history:
+                plt.plot(history.history['val_loss'], label='Val Loss')
+            plt.title('LSTM Training Loss')
+            plt.legend()
 
-        plt.subplot(1,2,2)
+        plt.subplot(1, 2, 2)
+        print("Optimal weights:", optimal_weights)
+        #aggiunta per provare a sistemare il problema della matrice
         plt.bar(returns_df.columns, optimal_weights)
         plt.title('Optimal Portfolio Weights')
         plt.ylabel('Weight')
@@ -184,9 +208,19 @@ std_daily = std_annual / np.sqrt(252)
 
 # Simuliamo rendimenti giornalieri realistici
 returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
-returns_df = pd.DataFrame(returns, columns=assets)
 
+with open("marc\selected_assets.json") as file:
+    data = json.load(file)
+
+# === Crea DataFrame prezzi ===
+prices_df = pd.DataFrame({
+    k: pd.Series(v['history']).sort_index()
+    for k, v in data.items()
+}).reset_index(drop=True)
+
+# === Calcola rendimenti log giornalieri ===
+returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
 print(returns_df)
 
-# ⚡️ CHIAMA LA FUNZIONE
+# ⚡️ CHIAMA LA FUNZIONE con rendimenti (non prezzi!)
 optimal_weights = optimize_portfolio(returns_df)
