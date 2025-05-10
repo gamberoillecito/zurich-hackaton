@@ -167,28 +167,28 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 # ============================
 # ✨ ESEMPIO DI USO (REALISTIC DATA — 20 ASSETS)
 # ============================
-np.random.seed(42)
-n_days = 150
+#np.random.seed(42)
+#n_days = 150
 
-assets = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
-          'NVDA', 'JPM', 'BAC', 'WMT', 'PG',
-          'JNJ', 'PFE', 'UNH', 'XOM', 'CVX',
-          'T', 'VZ', 'NKE', 'KO', 'MCD']
+#assets = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
+#          'NVDA', 'JPM', 'BAC', 'WMT', 'PG',
+#          'JNJ', 'PFE', 'UNH', 'XOM', 'CVX',
+#          'T', 'VZ', 'NKE', 'KO', 'MCD']
 
-n_assets = len(assets)
+#n_assets = len(assets)
 
 # Simuliamo diversi rendimenti medi annualizzati per settori (in ordine approssimativo)
 # Tech: più alto, Financial/Consumer/Healthcare: medio, Energy/Telecom: più basso
-mean_annual_returns = np.array([
-    0.15, 0.14, 0.14, 0.16, 0.18,  # Tech
-    0.20,                           # NVDA (semiconduttori ⇒ più volatile)
-    0.10, 0.09,                    # Financials
-    0.08, 0.08,                    # Consumer Staples
-    0.10, 0.09, 0.11,              # Healthcare
-    0.08, 0.07,                    # Energy
-    0.06, 0.06,                    # Telecom
-    0.12, 0.08, 0.11              # Consumer Discretionary / Staples
-])
+# mean_annual_returns = np.array([
+ #   0.15, 0.14, 0.14, 0.16, 0.18,  # Tech
+ #   0.20,                           # NVDA (semiconduttori ⇒ più volatile)
+ #   0.10, 0.09,                    # Financials
+ #   0.08, 0.08,                    # Consumer Staples
+ #   0.10, 0.09, 0.11,              # Healthcare
+ #   0.08, 0.07,                    # Energy
+ #   0.06, 0.06,                    # Telecom
+ #   0.12, 0.08, 0.11              # Consumer Discretionary / Staples
+#])
 
 # Volatilità annualizzate per settori (approssimative)
 #std_annual = np.array([
@@ -209,7 +209,7 @@ mean_annual_returns = np.array([
 # Simuliamo rendimenti giornalieri realistici
 #returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
-with open("marc\selected_assets.json") as file:
+with open("marc\selected_assets test1.json") as file:
     data = json.load(file)
 
 # === Crea DataFrame prezzi ===
