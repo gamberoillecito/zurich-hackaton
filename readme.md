@@ -2,69 +2,44 @@
 
 ## Overview
 
-This project implements a quantum-inspired portfolio optimization algorithm using either QUBO (Quadratic Unconstrained Binary Optimization) formulation or QAOA based on a cost function hamiltonian. The script processes financial data, calculates a covariance matrix, and selects an optimal portfolio of assets using one of the two quantum approaches. The solution is saved as a JSON file containing the selected assets and their historical data.
+This project implements a quantum-inspired portfolio optimization algorithm using either QUBO (Quadratic Unconstrained Binary Optimization) formulation or QAOA approximation based on a cost function hamiltonian. 
+The goal was to be able to fully exploit quantum advantage in the choice of the assets, having the possibility to choose the most advantageous method.
+
+The script pre-processes financial data, calculates a covariance matrix, and selects an optimal portfolio of assets using one of the two quantum approaches. 
+
+The solution is saved as a JSON file containing the selected assets and their historical data.
 
 ## Features
 
-- **Data Preprocessing**: Filters and preprocesses input data based on date and asset constraints.
-- **Covariance Matrix Calculation**: Computes the covariance matrix for the given assets.
-- **Portfolio Optimization**: Uses QUBO and simulated annealing to select an optimal portfolio of assets.
-- **Result Export**: Saves the selected assets and their historical data to a JSON file.
+- **Data Preprocessing**: Tools for filtering and preprocessing financial data based on date and asset constraints. This step was implemented as a way to reduce the size of the dataset aiming at preserving a statistically relevant subset.
+- **Covariance Matrix Calculation**: Scripts to compute covariance matrices for asset returns.
+- **Portfolio Optimization**:
+  - QUBO formulation with simulated annealing.
+  - QAOA-based optimization using cost function Hamiltonians.
+- **Monte Carlo Simulations**: Generate random paths for asset prices.
+- **Markowitz Optimization**: Classical portfolio optimization using the Markowitz model.
+- **Machine Learning**: Includes LSTM-based models for asset price prediction.
+- **Result Export**: Saves selected assets and their historical data to JSON files.
 
-## Requirements
+## Relevant functions and choices
 
-The following Python libraries are required:
+### `DataPruner`
 
-- `qubovert`
-- `qiskit-aer`
-- `qiskit`
-- `numpy`
-- `pandas`
+This class performs a coarse reduction of the dataset while trying to preserve a diversified subset of data.
+The main reason why we decided to implement this feature is to specify an upper bound of the dataset size to be tuned according to the hardware capabilities of the machine. In this way it would be possible to operate on dataset that exceed the available resources without compromising to much on data quality.
 
-Install the dependencies using pip:
+The way the pruner works is by looking for different aspects by which to characterise the data (e.g.`region`, `sector`, `industry`) and trying to pick a varied subset that represents these categories.
 
-```bash
-pip install qubovert qiskit-aer qiskit numpy pandas
-```
+### `AssetSelector`
 
-## Usage
+This class is in charge of the selection of the optimal portfolio, it does so by first excluding the dates in the future to avoid the accidental use of "unrealistic" data.
 
-1. **Input Data**: Provide a JSON file containing asset data with historical prices. The file should have the following structure:
-   ```json
-   {
-       "evaluation_date": "yyyy-mm-dd",
-       "assets": {
-           "asset_name_1": {
-               "history": {
-                   "yyyy-mm-dd": price,
-                   ...
-               }
-           },
-           ...
-       }
-   }
-   ```
+After this step we build the covariance matrix and proceed with the definition of the models to be solved. As stated before we used to alternative approaches to explore different aspects of quantum computing:
 
-2. **Run the Script**: Execute the script to process the data and optimize the portfolio. Example:
-   ```bash
-   python giacomo.py
-   ```
+- QUBO: the QUBO formulation is know to be suited for the execution on quantum annealers as well as gate-based quantum computers and offers a simple formalism to model this problem.
+- Ising model: although similar to the previous formalism, this model allows ((FONTE)) for an easier implementation in gate-based computers. Despite our efforts though, this implementation resulted in a worse solution due to difficulties encoutered. We want to highlight that the bottleneck is in the algorithm used to create the circuit and not in the circuit itself, giving more hopes for a better implementation.
 
-3. **Output**: The selected assets and their historical data will be saved to `selected_assets.json`.
 
-## Functions
-
-### `filter_dates_before(input_dict, specified_date)`
-Filters a dictionary to include only entries with dates before a specified date.
-
-### `read_input_file(input_file_name, date_limit=None, max_assets=None)`
-Reads and preprocesses the input JSON file. Filters data by date and limits the number of assets.
-
-### `covariance_matrix(data)`
-Calculates the covariance matrix for the given assets.
-
-### `get_selected_assets(data, sol)`
-Parses the optimization solution and saves the selected assets to a JSON file.
 
 ## Example Workflow
 
@@ -77,7 +52,3 @@ Parses the optimization solution and saves the selected assets to a JSON file.
 
 - The script assumes that all assets have the same number of historical data points.
 - The portfolio size and other parameters can be adjusted in the script.
-
-## License
-
-This project is licensed under the MIT License.
