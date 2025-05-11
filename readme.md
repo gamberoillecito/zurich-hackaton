@@ -37,7 +37,7 @@ This class is in charge of the selection of the optimal portfolio, it does so by
 After this step we build the covariance matrix and proceed with the definition of the models to be solved. As stated before we used to alternative approaches to explore different aspects of quantum computing:
 
 - QUBO: the QUBO formulation is know to be suited for the execution on quantum annealers as well as gate-based quantum computers and offers a simple formalism to model this problem.
-- Ising model: although similar to the previous formalism, this model allows ((FONTE)) for an easier implementation in gate-based computers. Despite our efforts though, this implementation resulted in a worse solution due to difficulties encoutered. We want to highlight that the bottleneck is in the algorithm used to create the circuit and not in the circuit itself, giving more hopes for a better implementation.
+- Ising model: although similar to the previous formalism, this model allows (reference)[https://doi.org/10.1038/s42005-024-01577-x] for an easier implementation in gate-based computers. Despite our efforts though, this implementation resulted in a worse solution due to difficulties encoutered. We want to highlight that the bottleneck is in the algorithm used to create the circuit and not in the circuit itself, giving more hopes for a better implementation.
 
 
 
