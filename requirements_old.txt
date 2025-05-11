@@ -1,0 +1,10 @@
+qubovert
+qiskit-aer
+qiskit
+pylatexenc
+qiskit-ibm-runtime
+scikit-learn
+tensorflow
+cvxpy
+pandas
+matplotlib
