@@ -58,9 +58,11 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     # ⚙️ COSTRUISCI MODELLO LSTM
     # ============================
     model = Sequential([
-        LSTM(units=50, activation='tanh', input_shape=(lookback_days, n_assets)),
-        Dropout(0.2),
-        Dense(units=1)
+    LSTM(units=100, activation='tanh', input_shape=(lookback_days, n_assets), return_sequences=True),
+    LSTM(units=50, activation='tanh', return_sequences=False),
+    Dropout(0.3),
+    Dense(units=25, activation='relu'),
+    Dense(units=1)
     ])
     model.compile(optimizer='adam', loss='mse')
 
@@ -226,4 +228,3 @@ def dictWeightedAssets(data):
     optimal_weights = optimize_portfolio(returns_df)
     # ⚡️ CHIAMA LA FUNZIONE con rendimenti (non prezzi!)
     return optimal_weights
-
