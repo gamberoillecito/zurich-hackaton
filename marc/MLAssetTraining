@@ -1,10 +1,10 @@
 # ============================
-# 📦 INSTALL REQUIRED PACKAGES (if needed)
+# 📦 INSTALL PACKAGES (if needed)
 # ============================
 # pip install pandas numpy matplotlib scikit-learn tensorflow cvxpy
 
 # ============================
-# 📚 IMPORTING LIBRARIES
+# 📚 IMPORT
 # ============================
 import pandas as pd
 import numpy as np
@@ -21,99 +21,95 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 import cvxpy as cp
 
 # ============================
-# ⚙️ OPTIMIZE PORTFOLIO FUNCTION
+# ⚙️ SINGLE FUNCTION
 # ============================
 def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.0, plot_results=True):
     """
-    Input: returns_df → DataFrame containing historical asset returns (n_days x n_assets)
+    Input: returns_df → DataFrame with historical asset returns (n_days x n_assets)
     Output: Dictionary with optimal asset weights
     """
-    n_assets = returns_df.shape[1]  # Number of assets
-
+    n_assets = returns_df.shape[1]
+    
     # ============================
-    # ⚙️ SCALE THE DATA (with sklearn)
+    # ⚙️ SCALE THE DATA (using sklearn)
     # ============================
-    # MinMaxScaler scales the data between 0 and 1, ensuring that features with large ranges don't dominate the model.
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaled_returns = scaler.fit_transform(returns_df)
 
     # ============================
-    # ⚙️ CREATE SEQUENCES X/y FOR LSTM
+    # ⚙️ BUILD X/y SEQUENCES
     # ============================
-    # Create sequences of historical returns (X) and the next day's average return (y)
     X = []
     y = []
-    for i in range(lookback_days, len(scaled_returns) - 1):  # Lookback period of 'lookback_days'
-        X.append(scaled_returns[i - lookback_days:i])  # Last 'lookback_days' returns as input features
-        y.append(np.mean(scaled_returns[i + 1]))  # Average return of the next day as the target
+    for i in range(lookback_days, len(scaled_returns) - 1):
+        X.append(scaled_returns[i - lookback_days:i])
+        y.append(np.mean(scaled_returns[i + 1]))
     X = np.array(X)
     y = np.array(y)
 
     # ============================
-    # ✂️ SPLIT DATA INTO TRAIN/TEST
+    # ✂️ SPLIT TRAIN/TEST
     # ============================
-    split = int(0.8 * len(X))  # 80% training, 20% testing
+    split = int(0.8 * len(X))
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
     # ============================
     # ⚙️ BUILD LSTM MODEL
     # ============================
-    model = Sequential([  # Sequential model with layers added one after another
-        LSTM(units=50, activation='tanh', input_shape=(lookback_days, n_assets)),  # LSTM layer with 50 units and tanh activation
-        Dropout(0.2),  # Dropout layer to prevent overfitting by randomly setting a fraction of inputs to zero
-        Dense(units=1)  # Dense output layer with a single neuron for the predicted return
+    model = Sequential([
+    LSTM(units=100, activation='tanh', input_shape=(lookback_days, n_assets), return_sequences=True),
+    LSTM(units=50, activation='tanh', return_sequences=False),
+    Dropout(0.3),
+    Dense(units=25, activation='relu'),
+    Dense(units=1)
     ])
-    model.compile(optimizer='adam', loss='mse')  # Compile the model with Adam optimizer and Mean Squared Error loss function
+    model.compile(optimizer='adam', loss='mse')
 
     # ============================
     # 🏋️‍♂️ TRAIN THE MODEL
     # ============================
     history = model.fit(X_train, y_train, epochs=epochs, batch_size=16, verbose=0, validation_data=(X_test, y_test))
-    # Train the model with the training data, validate on the test set, and record the training history
 
     # ============================
-    # 🔮 PREDICT NEXT DAY RETURN
+    # 🔮 LSTM PREDICTION (next day)
     # ============================
-    last_sequence = scaled_returns[-lookback_days:]  # Take the last 'lookback_days' returns
-    last_sequence = np.expand_dims(last_sequence, axis=0)  # Expand dimensions to match LSTM input shape
+    last_sequence = scaled_returns[-lookback_days:]
+    last_sequence = np.expand_dims(last_sequence, axis=0)
 
-    predicted_scaled = model.predict(last_sequence)[0][0]  # Predict the next day's scaled return
+    predicted_scaled = model.predict(last_sequence)[0][0]
 
     # ============================
     # 📊 HISTORICAL STATISTICS
     # ============================
-    # Remove assets with zero variance (constant series), since they offer no useful information
+    # Removes assets with zero variance (constant series)
     returns_df = returns_df.loc[:, returns_df.std() > 0]
 
-    mean_returns = returns_df.mean().values  # Calculate mean returns for each asset
-    cov_matrix = returns_df.cov().values  # Calculate the covariance matrix
-    n_assets = returns_df.shape[1]  # Update the number of assets after potential column removal
+    mean_returns = returns_df.mean().values
+    cov_matrix = returns_df.cov().values
+    n_assets = returns_df.shape[1]   # Update n_assets
 
     # ============================
     # ⚙️ BUILD PREDICTED RETURNS VECTOR
     # ============================
-    # Scale the predicted return by the historical mean returns and normalize it
     predicted_returns = mean_returns * (predicted_scaled / np.mean(mean_returns))
-    predicted_returns = predicted_returns / np.linalg.norm(predicted_returns)  # Normalize the returns vector
+    predicted_returns = predicted_returns / np.linalg.norm(predicted_returns)
 
     # ============================
     # ⚙️ CVXPY PORTFOLIO OPTIMIZER
     # ============================
-    # Define the optimization problem using cvxpy (a library for convex optimization)
+    w = cp.Variable(n_assets)
 
-    w = cp.Variable(n_assets)  # Variable for asset weights
+    portfolio_return = predicted_returns @ w
+    portfolio_variance = cp.quad_form(w, cov_matrix)
 
-    portfolio_return = predicted_returns @ w  # Portfolio return (dot product of predicted returns and weights)
-    portfolio_variance = cp.quad_form(w, cov_matrix)  # Portfolio variance (quadratic form of weights and covariance matrix)
+    penalty = cp.sum(cp.square(w - cp.mean(w))) + cp.quad_form(w, np.identity(n_assets)) 
+     # Penalizes the variance of the weights
 
-    # Penalize portfolios where weights are too similar (e.g., highly concentrated portfolios)
-    penalty = cp.sum(cp.square(w - cp.mean(w))) + cp.quad_form(w, np.identity(n_assets))
-
-    # Objective function: maximize portfolio return, minimize portfolio risk, and add penalty for weight uniformity
+    # Modified objective with penalty
     objective = cp.Maximize(portfolio_return - risk_aversion * portfolio_variance - penalty)
 
-    # Constraints: sum of weights must be 1, individual weights between 0.01 and 0.40 (limits on how much can be invested in each asset)
+    # Constraints on the weights
     constraints = [cp.sum(w) == 1, w >= 0.01, w <= 0.40]
 
     # Solve the optimization problem
@@ -121,24 +117,23 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     prob.solve()
 
     # ============================
-    # ✅ CHECK IF THE SOLUTION IS FEASIBLE
+    # ✅ CHECK IF IT'S FEASIBLE
     # ============================
     print("CVXPY problem status:", prob.status)
 
-    optimal_weights = w.value  # Get the optimized weights
+    optimal_weights = w.value
 
-    # If the problem is not feasible or CVXPY doesn't find a valid solution, set weights to zero
     if prob.status != "optimal" or optimal_weights is None:
         print("⚠️ CVXPY did not find a valid solution. Skipping weights and plot.")
-        optimal_weights = np.zeros(n_assets)  # Set weights to zero for safety
+        optimal_weights = np.zeros(n_assets)   # Set weights to zero for safety
 
     # ============================
-    # 📈 PLOT RESULTS (optional)
+    # 📈 PLOT (optional)
     # ============================
     if plot_results:
-        plt.figure(figsize=(14,4))  # Set up the plot
+        plt.figure(figsize=(14,4))
 
-        # Plot training loss (and validation loss if available)
+        # Check if 'loss' and 'val_loss' are available in the history dictionary
         if 'loss' in history.history:
             plt.subplot(1, 2, 1)
             plt.plot(history.history['loss'], label='Train Loss')
@@ -147,69 +142,89 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
             plt.title('LSTM Training Loss')
             plt.legend()
 
-        # Plot the optimal portfolio weights
         plt.subplot(1, 2, 2)
         print("Optimal weights:", optimal_weights)
-        plt.bar(returns_df.columns, optimal_weights)  # Create a bar chart for the optimal portfolio weights
+        # Added to try fixing the matrix problem
+        plt.bar(returns_df.columns, optimal_weights)
         plt.title('Optimal Portfolio Weights')
         plt.ylabel('Weight')
 
-        plt.tight_layout()  # Adjust layout to avoid overlap
-        plt.show()  # Display the plots
+        plt.tight_layout()
+        plt.show()
 
     # ============================
-    # 📋 OUTPUT (Return the optimal weights)
+    # 📋 OUTPUT
     # ============================
-    output = {}  # Dictionary to store the optimal weights
+    output = {}
     for i, weight in enumerate(optimal_weights):
-        output[returns_df.columns[i]] = round(weight, 4)  # Round the weights to 4 decimal places
+        output[returns_df.columns[i]] = round(weight, 4)
 
-    # Print the predicted return and optimal weights for each asset
     print(f"\nPredicted average return (next day): {predicted_scaled:.5f}")
     print("Optimal Portfolio Weights:")
     for k, v in output.items():
         print(f"{k}: {v}")
 
-    return output  # Return the dictionary of optimal weights
+    return output
 
 # ============================
-# ✨ EXAMPLE USAGE (REALISTIC DATA — 20 ASSETS)
+# ✨ EXAMPLE OF USE (REALISTIC DATA — 20 ASSETS)
 # ============================
-np.random.seed(42)  # Set random seed for reproducibility
-n_days = 150  # Number of days in the simulation
+#np.random.seed(42)
+#n_days = 150
 
-assets = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
-          'NVDA', 'JPM', 'BAC', 'WMT', 'PG',
-          'JNJ', 'PFE', 'UNH', 'XOM', 'CVX',
-          'T', 'VZ', 'NKE', 'KO', 'MCD']  # List of assets
+#assets = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
+#          'NVDA', 'JPM', 'BAC', 'WMT', 'PG',
+#          'JNJ', 'PFE', 'UNH', 'XOM', 'CVX',
+#          'T', 'VZ', 'NKE', 'KO', 'MCD']
 
-n_assets = len(assets)  # Number of assets
+#n_assets = len(assets)
 
-# Simulate realistic average annual returns for different sectors (rough approximation)
-mean_annual_returns = np.array([
-    0.15, 0.14, 0.14, 0.16, 0.18,  # Tech sector (higher returns)
-    0.20,                           # NVDA (semiconductors, more volatile)
-    0.10, 0.09,                    # Financials
-    0.08, 0.08,                    # Consumer Staples
-    0.10, 0.09, 0.11,              # Healthcare
-    0.08, 0.07,                    # Energy
-    0.06, 0.06,                    # Telecom
-    0.12, 0.08, 0.11              # Consumer Discretionary / Staples
-])
+# Simulate various annualized mean returns by sectors (in approximate order)
+# Tech: higher, Financial/Consumer/Healthcare: medium, Energy/Telecom: lower
+# mean_annual_returns = np.array([
+ #   0.15, 0.14, 0.14, 0.16, 0.18,  # Tech
+ #   0.20,                           # NVDA (semiconductors ⇒ more volatile)
+ #   0.10, 0.09,                    # Financials
+ #   0.08, 0.08,                    # Consumer Staples
+ #   0.10, 0.09, 0.11,              # Healthcare
+ #   0.08, 0.07,                    # Energy
+ #   0.06, 0.06,                    # Telecom
+ #   0.12, 0.08, 0.11              # Consumer Discretionary / Staples
+#])
 
-# Read the historical data from a JSON file
-with open("marc\selected_assets.json") as file:
-    data = json.load(file)
+# Volatility annualized by sectors (approximate)
+#std_annual = np.array([
+#    0.22, 0.20, 0.21, 0.25, 0.28,
+#    0.35,
+#    0.18, 0.19,
+#    0.15, 0.14,
+#    0.16, 0.17, 0.15,
+#    0.20, 0.19,
+#    0.13, 0.13,
+#    0.21, 0.14, 0.18
+#])
 
-# === Create DataFrame for prices ===
-prices_df = pd.DataFrame({
-    k: pd.Series(v['history']).sort_index()  # Convert price history into a DataFrame
+# Convert to daily values
+#mean_daily_returns = mean_annual_returns / 252
+#std_daily = std_annual / np.sqrt(252)
+
+# Simulate realistic daily returns
+#returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
+
+
+def dictWeightedAssets(data):
+    #with open(file) as openFile:
+    #    data = json.load(openFile)
+
+    # === Create Price DataFrame ===
+    prices_df = pd.DataFrame({
+    k: pd.Series(v['history']).sort_index()
     for k, v in data.items()
-}).reset_index(drop=True)
+    }).reset_index(drop=True)
 
-# === Calculate daily log returns ===
-returns_df = np.log(prices_df / prices_df.shift(1)).dropna()  # Calculate daily log returns
-print(returns_df)
-
-# ⚡️ CALL THE FUNCTION with returns (not prices!)
-optimal_weights = optimize_portfolio(returns_df)  # Optimize the portfolio using the historical returns
+   #=== Calculate daily log returns ===
+    returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
+    print(returns_df)
+    optimal_weights = optimize_portfolio(returns_df)
+    # ⚡️ CALL THE FUNCTION with returns (not prices!)
+    return optimal_weights
