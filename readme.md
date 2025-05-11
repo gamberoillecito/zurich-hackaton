@@ -52,3 +52,30 @@ After this step we build the covariance matrix and proceed with the definition o
 
 - The script assumes that all assets have the same number of historical data points.
 - The portfolio size and other parameters can be adjusted in the script.
+
+### Return forecasting
+
+Once we had our selected assets, the second step was to forecast future returns.
+This is fundamental because the Markowitz optimization model, as we’ll see, requires an input of expected returns.
+
+Here, we used a Long Short-Term Memory (LSTM) neural network — a type of recurrent neural network designed for sequential and time-series data, which fits well with financial returns.
+
+We built sequences of 5 days of log returns, and the model learned to predict the average of future returns.
+We normalized the data, applied Dropout regularization, and split the dataset into training and testing sets to prevent overfitting.
+
+Why LSTM?
+Because, compared to simpler models like linear regression or ARIMA, LSTMs are better at capturing complex temporal patterns, and they have been widely used in financial forecasting literature.
+
+### Portfolio allocation
+
+The third and final step was to allocate the portfolio weights. Here we applied the classic Markowitz model, which aims to maximize expected returns for a given level of risk — or equivalently, minimize risk for a given return.
+
+We computed:
+
+The covariance matrix of returns → to estimate risk
+
+The vector of expected returns → using the LSTM output
+
+We solved the optimization numerically, imposing constraints on the weights:
+No asset could have more than 40%, nor less than 1%, and weights had to sum to 100%.
+This ensured a well-balanced and realistic portfolio, suitable for practical application
