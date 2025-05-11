@@ -32,7 +32,7 @@ class AssetSelector():
         self.data = data 
         self.date_limit = date_limit
         self.solution = None
-
+        self.qubo_model = None
         ######################
         # DATA PREPROCESSING #
         ######################
@@ -66,9 +66,6 @@ class AssetSelector():
             self.data['assets'][a]['history'] = self.filter_dates_before(self.data['assets'][a]['history'], self.date_limit)
 
         
-        return  self.data
-        pass
-
     def filter_dates_before(self, input_dict, specified_date):
         """
         Filters the input dictionary to include only entries with dates before the specified date.
@@ -121,8 +118,9 @@ class AssetSelector():
 
         return np.corrcoef(assets_matrix)
 
-    @property
-    def qubo_model(self):
+    def create_qubo_model(self, portfolio_size):
+        '''Returns a qubo model for the portfolio optimization,
+        restricting the size of the portfolio to `portfolio_size` assets'''
         model = QUBO()
         P = 0
         # bool_vars = np.zeros_like(cvm).tolist()
@@ -130,7 +128,6 @@ class AssetSelector():
         triui = np.triu_indices_from(self.covariance_matrix, k=1)
         for k in range(len(triui[0])):
             model = QUBO()
-            self.covariance_matrix = 0
             x = [boolean_var(f"x_{i}") for i in range(self.covariance_matrix.shape[0])]
             for i, row in enumerate(self.covariance_matrix):
                 for j, weight in enumerate(row):
@@ -138,32 +135,34 @@ class AssetSelector():
                         # apart for the weight this is the formula on the pdf
                         model += weight*(2*x[i]*x[j] - x[i] - x[j])
             model = -model
-        return model
+        self.qubo_model = model
 
     def solve_qubo(self):
+        assert self.qubo_model, "Create the QUBO model first"
         self.solution = anneal_qubo(self.qubo_model, num_anneals=10).best
+        return self.solution
 
     def get_selected_assets(self):
         '''Given the solution of the optimization,
         it returns a dataset with name and history of the 
         selected assetes'''
 
-        assert self.solution != None, "No solution present, have you run a solver?"
+        assert self.solution, "No solution present, have you run a solver?"
 
 
         asset_names = list(self.data['assets'].keys())
         def parse_bool_var(x):
-            name, i, j = x.split('_')
+            name, i = x.split('_')
             if name == 'x':
-                return int(i), int(j)
-            return None, None 
+                return int(i)
+            return None 
         
         selected_assets_ids = ()
         for x in self.solution.state:
             if self.solution.state[x] == 1:
-                i, j = parse_bool_var(x)
-                if i is not None and j is not None:
-                    selected_assets_ids = (*selected_assets_ids, i, j)
+                i = parse_bool_var(x)
+                if i is not None:
+                    selected_assets_ids = (*selected_assets_ids, i)
         
         selected_assets = {asset_names[i]: self.data['assets'][asset_names[i]] for i in selected_assets_ids}
 
@@ -284,7 +283,7 @@ class AssetSelector():
         keys = list(final_distribution_int.keys())
         values = list(final_distribution_int.values())
         most_likely = keys[np.argmax(np.abs(values))]
-        most_likely_bitstring = to_bitstring(most_likely, cvm.shape[0])
+        most_likely_bitstring = to_bitstring(most_likely, self.covariance_matrix.shape[0])
         most_likely_bitstring.reverse()
 
         print("Result bitstring:", most_likely_bitstring)

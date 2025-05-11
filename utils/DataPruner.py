@@ -14,7 +14,7 @@ class DataPruner:
         to select `num_companies_to_select` assets'''
         # Group companies by industry, sector, and geographical region
         grouped_by_industry_sector_region = defaultdict(list)
-
+        
         for ticker, details in self.data.items():
             industry = details['industry']
             sector = details['sector']
