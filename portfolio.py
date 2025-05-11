@@ -12,7 +12,7 @@ def run(input_data):
     #     json.dump(data, file)
     assSel.compute_cost_hamiltonian()
     assSel.compute_ansatz()
-    assets = assSel.solve()
+    assets = assSel.solve_ising()
 
     optim = WeigthOptimizer(assets)
 

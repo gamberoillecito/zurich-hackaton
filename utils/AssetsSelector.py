@@ -47,9 +47,6 @@ class AssetSelector():
     def __init__(self, data,
                         date_limit:str=None,
                         max_assets:int=None):
-        '''Given a file, it returns the data related to it,
-        ignoring data before `date_limit`
-        '''
         self.data = data 
         self.date_limit = date_limit
         self.solution = None
@@ -142,6 +139,11 @@ class AssetSelector():
         return np.corrcoef(assets_matrix)
     
     def compute_cost_hamiltonian(self):
+        '''Computes the cost Hamiltonian of the Ising model
+        of the problem. This can be converted into a quantum
+        circuit which allows for a solution of the problem to 
+        be found using the `compute_ansatz` and `solve_ising` functions'''
+
         num_assets = self.covariance_matrix.shape[0]
         n = num_assets
         HC = np.zeros_like(z_j_sparse(n, 1))
@@ -162,12 +164,16 @@ class AssetSelector():
         self.cost_hamiltonian = SparsePauliOp.from_operator(HC)
 
     def compute_ansatz(self):
+        '''Computes the ansatz circuit for the ising model, it 
+        requires the cost Hamiltonian to be computed first'''
         assert self.cost_hamiltonian, "You must compute the cost hamiltonian first"
         ansatz = qaoa_ansatz(cost_operator=self.cost_hamiltonian, reps=2)
         ansatz.measure_all()
         self.ansatz = ansatz
     
-    def solve(self):
+    def solve_ising(self):
+        '''Solves the ising model and returns a dictionary of the
+        chosen assets'''
         assert self.cost_hamiltonian, "You must compute the cost hamiltonian first"
         assert self.ansatz, "You must compute the cost ansatz first"
         ansatz = self.ansatz
@@ -253,4 +259,37 @@ class AssetSelector():
 
         selected_assets = {ass: self.data['assets'][ass] for i, ass in enumerate(all_assets) if most_likely_bitstring[i] == 1}
         
+        return selected_assets
+    
+    def compute_qubo_model(self):
+        '''Computes teh QUBO matrix of the problem'''
+        model = QUBO()
+
+        x = [boolean_var(f"x_{i}") for i in range(self.covariance_matrix.shape[0])]
+        for i, row in enumerate(self.covariance_matrix):
+            for j, weight in enumerate(row):
+                if weight != 0:
+                    # apart for the weight this is the formula on the pdf
+                    model += weight*(2*x[i]*x[j] - x[i] - x[j])
+        self. qubo_model = -model
+
+    def solve_qubo(self, num_anneals=100):
+        '''Solves the qubo model and returns a dictionary of the
+        chosen assets'''
+        asset_names = list(self.data['assets'].keys())
+        def parse_bool_var(x):
+            name, i = x.split('_')
+            if name == 'x':
+                return int(i)
+            return None
+        
+        solution = anneal_qubo(self.qubo_model,  num_anneals=num_anneals).best
+        selected_assets_ids = ()
+        for x in solution.state:
+            if solution.state[x] == 1:
+                i = parse_bool_var(x)
+                if i is not None:
+                    selected_assets_ids = (*selected_assets_ids, i)
+        
+        selected_assets = {asset_names[i]: self.data['assets'][asset_names[i]] for i in selected_assets_ids}
         return selected_assets

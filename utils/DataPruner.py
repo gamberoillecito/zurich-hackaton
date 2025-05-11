@@ -5,7 +5,6 @@ from collections import defaultdict
 class DataPruner:
     def __init__(self, data):
         self.data = data
-        print(self.data.keys())
 
     def select_assets(self, num_companies_to_select):
         '''Given an input dataset, uses different heuristics
@@ -14,8 +13,8 @@ class DataPruner:
         grouped_by_industry_sector_region = defaultdict(list)
 
         self.evaluation_date = self.data['evaluation_date']
+        self.data = self.data['assets'] 
 
-        self.data['data'] = self.data['assets'] 
         for ticker, details in self.data.items():
             industry = details['industry']
             sector = details['sector']
