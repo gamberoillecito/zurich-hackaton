@@ -2,10 +2,13 @@ from utils.DataPruner import DataPruner
 from utils.AssetsSelector import AssetSelector
 from utils.WeigthOptimizer import WeigthOptimizer
 import json
+import logging
+logger = logging.getLogger(__name__)
+
 with open("./eth_hackathon/input_one_day.json") as file:
     data = json.load(file)
 dp = DataPruner(data)
-data = dp.select_assets(50)
+data = dp.select_assets(100)
 # print(data['evaluation_date'])
 assSel = AssetSelector(data, data['evaluation_date'])
 
@@ -25,4 +28,5 @@ assets = assSel.solve_qubo()
 
 optim = WeigthOptimizer(assets)
 
-print(optim.optimize_portfolio())
+with open("output.json", 'w') as f:
+    json.dump(optim.optimize_portfolio(), f)

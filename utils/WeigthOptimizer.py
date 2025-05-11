@@ -9,6 +9,8 @@ from sklearn.metrics import mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
+import logging
+logger = logging.getLogger(__name__)
 
 import cvxpy as cp
 
@@ -148,6 +150,7 @@ class WeigthOptimizer():
 
             plt.subplot(1, 2, 2)
             print("Optimal weights:", optimal_weights)
+            logger.info(optimal_weights)
             # Added to try fixing the matrix problem
             plt.bar(self.returns_df.columns, optimal_weights)
             plt.title('Optimal Portfolio Weights')
