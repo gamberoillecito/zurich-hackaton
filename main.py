@@ -5,7 +5,7 @@ def run(input_data,solver_params,extra_arguments):
         input_data['evaluation_date']=extra_arguments['evaluation_date']
 
     if 'ising' in extra_arguments:
-        solver = 'qubo'
+        solver = 'ising'
     return portfolio.run(input_data, solver=solver)
 
 # if __name__ == "__main__":
