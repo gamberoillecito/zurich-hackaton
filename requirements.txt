@@ -6,3 +6,4 @@ qiskit-ibm-runtime
 scikit-learn
 tensorflow
 cvxpy
+pandas
