@@ -3,7 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 from qiskit_aer import Aer
-from qiskit.algorithms.linear_solvers.hhl import HHL
+import HHL
+
+
+
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
@@ -11,6 +14,7 @@ from sklearn.metrics import mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
+
 
 def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.0, plot_results=True):
     """
@@ -172,5 +176,10 @@ def dictWeightedAssets(data):
     returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
     print(returns_df)
     optimal_weights = optimize_portfolio(returns_df)
+    print(optimal_weights)
     return optimal_weights
 
+with open("marc\selected_assets test1.json") as file:
+    data = json.load(file)
+
+dictWeightedAssets(data)
