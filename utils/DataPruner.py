@@ -3,18 +3,19 @@ import random
 from collections import defaultdict
 
 class DataPruner:
-    def __init__(self, file_path):
-        pass
-        # Read the dataset from the JSON file
-        with open(file_path) as file:
-            self.data = json.load(file)
+    def __init__(self, data):
+        self.data = data
+        print(self.data.keys())
 
     def select_assets(self, num_companies_to_select):
         '''Given an input dataset, uses different heuristics
         to select `num_companies_to_select` assets'''
         # Group companies by industry, sector, and geographical region
         grouped_by_industry_sector_region = defaultdict(list)
-        
+
+        self.evaluation_date = self.data['evaluation_date']
+
+        self.data['data'] = self.data['assets'] 
         for ticker, details in self.data.items():
             industry = details['industry']
             sector = details['sector']
@@ -39,5 +40,4 @@ class DataPruner:
             remaining_tickers = [ticker for ticker in self.data if ticker not in selected_companies]
             additional_tickers = random.sample(remaining_tickers, remaining)
             selected_companies.update({ticker: self.data[ticker] for ticker in additional_tickers})
-
-        return selected_companies
+        return {'evaluation_date': self.evaluation_date, 'assets': selected_companies}

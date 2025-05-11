@@ -13,7 +13,7 @@ import random
 import math
 import pandas as pd
 
-from qiskit.circuit.library import QAOAAnsatz
+from qiskit.circuit.library import qaoa_ansatz
 from qiskit.quantum_info import SparsePauliOp
 from qiskit import QuantumCircuit, transpile
 
@@ -21,6 +21,27 @@ from qiskit_ibm_runtime import Session, EstimatorV2 as Estimator, SamplerV2 as S
 from scipy.optimize import minimize
 from qiskit_aer import AerSimulator
 import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix, kron, eye
+
+def pauli_z_sparse():
+    """Returns the sparse Pauli Z matrix."""
+    return csr_matrix([[1, 0], [0, -1]])
+
+Z = pauli_z_sparse()
+I = eye(2, format='csr')  # Sparse identity matrix of size 2
+def z_j_sparse(n, j):
+    """Returns the sparse matrix Z_j for n qubits applied to qubit j."""
+
+    # Start with the identity matrix for n qubits
+    result = I
+
+    for i in range(1, n + 1):
+        if i == j:
+            result = kron(result, Z, format='csr')  # Apply Z to qubit j
+        else:
+            result = kron(result, I, format='csr')  # Apply I to other qubits
+
+    return result
 
 class AssetSelector():
     def __init__(self, data,
@@ -33,6 +54,8 @@ class AssetSelector():
         self.date_limit = date_limit
         self.solution = None
         self.qubo_model = None
+        self.cost_hamiltonian = None
+        self.ansatz = None
         ######################
         # DATA PREPROCESSING #
         ######################
@@ -117,90 +140,41 @@ class AssetSelector():
             assets_matrix[i, :] = list(history.values())
 
         return np.corrcoef(assets_matrix)
+    
+    def compute_cost_hamiltonian(self):
+        num_assets = self.covariance_matrix.shape[0]
+        n = num_assets
+        HC = np.zeros_like(z_j_sparse(n, 1))
+        bigI = np.eye(z_j_sparse(n, 1).shape[0])
 
-    def create_qubo_model(self, portfolio_size):
-        '''Returns a qubo model for the portfolio optimization,
-        restricting the size of the portfolio to `portfolio_size` assets'''
-        model = QUBO()
-        P = 0
-        # bool_vars = np.zeros_like(cvm).tolist()
+        for j in range(num_assets):
+            HC = 1/2 * (bigI - z_j_sparse(n, j) + HC)
+
+        delta = 1000
 
         triui = np.triu_indices_from(self.covariance_matrix, k=1)
-        for k in range(len(triui[0])):
-            model = QUBO()
-            x = [boolean_var(f"x_{i}") for i in range(self.covariance_matrix.shape[0])]
-            for i, row in enumerate(self.covariance_matrix):
-                for j, weight in enumerate(row):
-                    if weight != 0:
-                        # apart for the weight this is the formula on the pdf
-                        model += weight*(2*x[i]*x[j] - x[i] - x[j])
-            model = -model
-        self.qubo_model = model
+        for t in range(len(triui[0])):
+            j = triui[0][t]
+            k = triui[1][t]
+            HC = delta * 1/4 * (bigI - z_j_sparse(n, j) - z_j_sparse(n, k) + np.kron(z_j_sparse(n,j), z_j_sparse(n,k)))
+            # HC = np.kron(z_j_sparse(n,j), z_j_sparse(n,k))
 
-    def solve_qubo(self):
-        assert self.qubo_model, "Create the QUBO model first"
-        self.solution = anneal_qubo(self.qubo_model, num_anneals=10).best
-        return self.solution
+        self.cost_hamiltonian = SparsePauliOp.from_operator(HC)
 
-    def get_selected_assets(self):
-        '''Given the solution of the optimization,
-        it returns a dataset with name and history of the 
-        selected assetes'''
-
-        assert self.solution, "No solution present, have you run a solver?"
-
-
-        asset_names = list(self.data['assets'].keys())
-        def parse_bool_var(x):
-            name, i = x.split('_')
-            if name == 'x':
-                return int(i)
-            return None 
-        
-        selected_assets_ids = ()
-        for x in self.solution.state:
-            if self.solution.state[x] == 1:
-                i = parse_bool_var(x)
-                if i is not None:
-                    selected_assets_ids = (*selected_assets_ids, i)
-        
-        selected_assets = {asset_names[i]: self.data['assets'][asset_names[i]] for i in selected_assets_ids}
-
-        return selected_assets
-
-    def solve_ising(self):
-        qubo = self.model.to_qubo()
-        qubo_mat_dim = qubo.num_binary_variables
-        # np_qubo = np.zeros((qubo_mat_dim,qubo_mat_dim))
-
-        pauli_list = []
-        # Z = ZGate().to_matrix()
-        # HC = np.zeros_like(np_qubo)
-        for i in range(qubo_mat_dim):
-            for j in range(qubo_mat_dim):
-                if (qubo[i,j] == 0):
-                    continue
-                
-                s = ['I' for i in range(qubo_mat_dim)]
-                s[i] = 'Z'
-                s[j] = 'Z'
-                pauli_list.append((''.join(s), qubo[i,j]))
-
-        cost_hamiltonian = SparsePauliOp.from_list(pauli_list)
-        ansatz = QAOAAnsatz(cost_hamiltonian, reps=2)
-
-
-        # qubo_to_ising(model).decompose(reps=3).draw('mpl', scale=0.2, fold=200)
+    def compute_ansatz(self):
+        assert self.cost_hamiltonian, "You must compute the cost hamiltonian first"
+        ansatz = qaoa_ansatz(cost_operator=self.cost_hamiltonian, reps=2)
         ansatz.measure_all()
-        # ansatz.draw('mpl')
-        # ansatz.decompose(reps=3).draw('mpl', scale=0.2, fold=200)
-        ansatz.parameters
-
+        self.ansatz = ansatz
+    
+    def solve(self):
+        assert self.cost_hamiltonian, "You must compute the cost hamiltonian first"
+        assert self.ansatz, "You must compute the cost ansatz first"
+        ansatz = self.ansatz
         initial_gamma = np.pi
         initial_beta = np.pi/2
         init_params = [initial_gamma, initial_beta, initial_gamma, initial_beta]
-
-
+        
         def cost_func_estimator(params, ansatz, hamiltonian, estimator):
 
             # transform the observable defined on virtual qubits to
@@ -215,9 +189,9 @@ class AssetSelector():
 
             objective_func_vals.append(cost)
 
+
             return cost
-
-
+        
         backend = AerSimulator(method='statevector')
         ansatz = transpile(ansatz, backend)
         objective_func_vals = [] # Global variable
@@ -235,27 +209,19 @@ class AssetSelector():
             result = minimize(
                 cost_func_estimator,
                 init_params,
-                args=(ansatz, cost_hamiltonian, estimator),
+                args=(ansatz, self.cost_hamiltonian, estimator),
                 method="COBYLA",
                 tol=1e-2,
             )
             print(result)
-
-
-
+        
         plt.figure(figsize=(12, 6))
         plt.plot(objective_func_vals)
         plt.xlabel("Iteration")
         plt.ylabel("Cost")
         plt.show()
-
-
         optimized_circuit = ansatz.assign_parameters(result.x)
         optimized_circuit.draw('mpl', fold=False, idle_wires=False)
-
-
-
-        # If using qiskit-ibm-runtime<0.24.0, change `mode=` to `backend=`
         sampler = Sampler(mode=backend)
         sampler.options.default_shots = 10000
 
@@ -273,9 +239,6 @@ class AssetSelector():
         final_distribution_int = {key: val/shots for key, val in counts_int.items()}
         final_distribution_bin = {key: val/shots for key, val in counts_bin.items()}
         # print(final_distribution_int)
-
-
-        # auxiliary functions to sample most likely bitstring
         def to_bitstring(integer, num_bits):
             result = np.binary_repr(integer, width=num_bits)
             return [int(digit) for digit in result]
@@ -283,34 +246,11 @@ class AssetSelector():
         keys = list(final_distribution_int.keys())
         values = list(final_distribution_int.values())
         most_likely = keys[np.argmax(np.abs(values))]
-        most_likely_bitstring = to_bitstring(most_likely, self.covariance_matrix.shape[0])
-        most_likely_bitstring.reverse()
+        most_likely_bitstring = to_bitstring(most_likely, self.covariance_matrix.shape[0] + 1)
+        # most_likely_bitstring.reverse()
 
-        print("Result bitstring:", most_likely_bitstring)
+        all_assets = list(self.data['assets'].keys())
 
-
-        import matplotlib.pyplot as plt
-        import matplotlib
-
-        matplotlib.rcParams.update({"font.size": 10})
-        final_bits = final_distribution_bin
-        values = np.abs(list(final_bits.values()))
-        top_4_values = sorted(values, reverse=True)[:4]
-        positions = []
-        for value in top_4_values:
-            positions.append(np.where(values == value)[0])
-        fig = plt.figure(figsize=(11, 6))
-        ax = fig.add_subplot(1, 1, 1)
-        plt.xticks(rotation=45)
-        plt.title("Result Distribution")
-        plt.xlabel("Bitstrings (reversed)")
-        plt.ylabel("Probability")
-        ax.bar(list(final_bits.keys()), list(final_bits.values()), color="tab:grey")
-        for p in positions:
-            ax.get_children()[int(p)].set_color("tab:purple")
-        plt.show()
-
-
-
-
-
+        selected_assets = {ass: self.data['assets'][ass] for i, ass in enumerate(all_assets) if most_likely_bitstring[i] == 1}
+        
+        return selected_assets
