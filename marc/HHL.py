@@ -87,7 +87,15 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     cov_matrix = returns_df.cov().values
     n_assets = returns_df.shape[1]   # Aggiorna n_assets
 
-    # Configura il backend
+    # ============================
+    # ⚙️ COSTRUISCI PREDICTED RETURNS VECTOR
+    # ============================
+    predicted_returns = mean_returns * (predicted_scaled / np.mean(mean_returns))
+    predicted_returns = predicted_returns / np.linalg.norm(predicted_returns)
+
+    # ============================
+    # ⚙️ CONFIGURA IL BACKEND QUANTUM
+    # ============================
     backend = Aer.get_backend('aer_simulator')
 
     # Costruisci A (cov_matrix) e b (predicted_returns)
@@ -101,29 +109,29 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
     # Normalizza b per HHL
     b_norm = b / np.linalg.norm(b)
 
-    # Esegui HHL direttamente con il backend (NUOVO MODO)
+    # ============================
+    # 🧠 ESEGUE HHL
+    # ============================
     hhl = HHL()
     result = hhl.solve(matrix=A_reg, vector=b_norm, backend=backend)
 
     # Estrai la soluzione (array numpy)
     optimal_weights = np.real(result.solution)
 
-    # Normalizza i pesi
+    # ============================
+    # NORMALIZZA I PESI
+    # ============================
     optimal_weights = np.clip(optimal_weights, 0.01, 0.40)
     optimal_weights = optimal_weights / np.sum(optimal_weights)
 
-    # Controlla validità
+    # ============================
+    # CONTROLLA VALIDEZZA
+    # ============================
     if optimal_weights is None or np.any(np.isnan(optimal_weights)):
         print("⚠️ HHL did not find a valid solution. Skipping weights and plot.")
         optimal_weights = np.zeros(n_assets)
     else:
         print("✅ HHL quantum solver returned valid weights")
-
-    optimal_weights = w.value
-
-    if prob.status != "optimal" or optimal_weights is None:
-        print("⚠️ CVXPY did not find a valid solution. Skipping weights and plot.")
-        optimal_weights = np.zeros(n_assets)   # Mettiamo pesi a zero per sicurezza
 
     # ============================
     # 📈 PLOT (facoltativo)
@@ -178,56 +186,28 @@ def optimize_portfolio(returns_df, lookback_days=5, epochs=50, risk_aversion=10.
 #n_assets = len(assets)
 
 # Simuliamo diversi rendimenti medi annualizzati per settori (in ordine approssimativo)
-# Tech: più alto, Financial/Consumer/Healthcare: medio, Energy/Telecom: più basso
-# mean_annual_returns = np.array([
- #   0.15, 0.14, 0.14, 0.16, 0.18,  # Tech
- #   0.20,                           # NVDA (semiconduttori ⇒ più volatile)
- #   0.10, 0.09,                    # Financials
- #   0.08, 0.08,                    # Consumer Staples
- #   0.10, 0.09, 0.11,              # Healthcare
- #   0.08, 0.07,                    # Energy
- #   0.06, 0.06,                    # Telecom
- #   0.12, 0.08, 0.11              # Consumer Discretionary / Staples
-#])
-
-# Volatilità annualizzate per settori (approssimative)
-#std_annual = np.array([
-#    0.22, 0.20, 0.21, 0.25, 0.28,
-#    0.35,
-#    0.18, 0.19,
-#    0.15, 0.14,
-#    0.16, 0.17, 0.15,
-#    0.20, 0.19,
-#    0.13, 0.13,
-#    0.21, 0.14, 0.18
-#])
-
-# Convertiamo a valori giornalieri
-#mean_daily_returns = mean_annual_returns / 252
-#std_daily = std_annual / np.sqrt(252)
+# mean_annual_returns = np.array([...])
+# std_annual = np.array([...])
 
 # Simuliamo rendimenti giornalieri realistici
-#returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
-
+# returns = np.random.normal(loc=mean_daily_returns, scale=std_daily, size=(n_days, n_assets))
 
 def dictWeightedAssets(data):
-    #with open(file) as openFile:
-    #    data = json.load(openFile)
-
     # === Crea DataFrame prezzi ===
     prices_df = pd.DataFrame({
-    k: pd.Series(v['history']).sort_index()
-    for k, v in data.items()
+        k: pd.Series(v['history']).sort_index()
+        for k, v in data.items()
     }).reset_index(drop=True)
 
-   #=== Calcola rendimenti log giornalieri ===
+    # === Calcola rendimenti log giornalieri ===
     returns_df = np.log(prices_df / prices_df.shift(1)).dropna()
     print(returns_df)
     optimal_weights = optimize_portfolio(returns_df)
     # ⚡️ CHIAMA LA FUNZIONE con rendimenti (non prezzi!)
     return optimal_weights
 
-with open("marc\selected_assets test1.json") as openFile:
+# Carica i dati dal file JSON
+with open("marc\\selected_assets test1.json") as openFile:
    data = json.load(openFile)
 
 dictWeightedAssets(data)
